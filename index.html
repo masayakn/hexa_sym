@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>3D 六角柱詰め込みシミュレーター</title>
+<style>
+body { margin:0; overflow:hidden; font-family:sans-serif; }
+#ui {
+  position:absolute;
+  top:10px;
+  left:10px;
+  background:white;
+  padding:10px;
+  border-radius:8px;
+}
+button { padding:5px 10px; }
+</style>
+</head>
+
+<body>
+
+<div id="ui">
+半径(cm)<input id="radius" value="700"><br>
+高さ(cm)<input id="height" value="3000"><br>
+<button onclick="generate()">生成</button>
+<p id="count"></p>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/three@0.160/build/three.min.js"></script>
+
+<script>
+let scene, camera, renderer;
+
+init();
+
+function init(){
+  scene = new THREE.Scene();
+
+  camera = new THREE.PerspectiveCamera(60, window.innerWidth/window.innerHeight, 1, 10000);
+  camera.position.set(0, 500, 1200);
+
+  renderer = new THREE.WebGLRenderer({antialias:true});
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  document.body.appendChild(renderer.domElement);
+
+  const light = new THREE.DirectionalLight(0xffffff,1);
+  light.position.set(1,1,1);
+  scene.add(light);
+
+  const ambient = new THREE.AmbientLight(0x888888);
+  scene.add(ambient);
+
+  animate();
+}
+
+function animate(){
+  requestAnimationFrame(animate);
+  renderer.render(scene, camera);
+}
+
+function generate(){
+
+  // 既存削除
+  while(scene.children.length > 2){
+    scene.remove(scene.children[2]);
+  }
+
+  const R = parseFloat(document.getElementById("radius").value);
+  const H = parseFloat(document.getElementById("height").value);
+
+  const side = 7;
+  const thickness = 2;
+
+  const hexHeight = Math.sqrt(3) * side;
+
+  const dx = thickness;
+  const dy = hexHeight * 0.866;
+
+  let total = 0;
+
+  const layers = Math.floor(H / hexHeight);
+
+  // 円錐（透明）
+  const coneGeo = new THREE.ConeGeometry(R, H, 64, 1, true);
+  const coneMat = new THREE.MeshBasicMaterial({
+    color:0x00ffcc,
+    wireframe:true,
+    transparent:true,
+    opacity:0.2
+  });
+
+  const cone = new THREE.Mesh(coneGeo, coneMat);
+  cone.position.y = H/2;
+  scene.add(cone);
+
+  // 六角柱
+  const hexGeo = new THREE.CylinderGeometry(side, side, thickness, 6);
+
+  const material = new THREE.MeshStandardMaterial({color:0x007acc});
+
+  for(let layer=0; layer<layers; layer++){
+
+    const h = layer * hexHeight;
+    const r = R * (1 - h / H);
+
+    let y = -r;
+    let row = 0;
+
+    while(y <= r){
+
+      const offset = (row % 2 === 0) ? 0 : dx/2;
+
+      let x = -r;
+
+      while(x <= r){
+
+        const xx = x + offset;
+
+        if(xx*xx + y*y <= r*r){
+
+          // 描画軽量化：間引き
+          if(layer % 10 === 0){
+
+            const mesh = new THREE.Mesh(hexGeo, material);
+
+            mesh.position.set(xx, h, y);
+
+            scene.add(mesh);
+          }
+
+          total++;
+        }
+
+        x += dx;
+      }
+
+      y += dy;
+      row++;
+    }
+  }
+
+  document.getElementById("count").innerText =
+    "総個数：約 " + total.toLocaleString() + " 個（描画は軽量化）";
+}
+</script>
+
+</body>
+</html>
